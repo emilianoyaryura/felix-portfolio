@@ -7,6 +7,11 @@
   /* Curvas de easing fuertes (los builtin de CSS son flojos). */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* Design system del admin (mismo mundo paper/ink, acento verde bosque). */
+  --primary: #1e4034;
+  --border: #e6e4df;
+  --popover: #f4f3ee;
+  --popover-foreground: #463f3a;
 }
 
 @theme inline {
@@ -14,9 +19,16 @@
   --color-ink: var(--ink);
   --color-background: var(--paper);
   --color-foreground: var(--ink);
+  --color-primary: var(--primary);
+  --color-border: var(--border);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-serif-display);
   --font-mono: var(--font-geist-mono);
+  --animate-custom-show: custom-show 150ms ease-out;
+  --animate-custom-hide: custom-hide 150ms ease-in;
+  --animate-custom-animate-in: custom-animate-in 150ms ease-out;
 }
 
 /* Nada de height:100% en html/body: Lenis lo necesita en `auto` para medir el
@@ -31,4 +43,48 @@ body {
 /* La imagen de picsum no debe ser arrastrable como imagen nativa. */
 img {
   -webkit-user-drag: none;
+}
+
+/* ── Admin design system ─────────────────────────────────────────────────── */
+
+/* Sombras multicapa muy sutiles (popovers y dialogs). */
+.smooth-shadow {
+  box-shadow:
+    0px 0px 0px 1px #0e3f7e08, 0px 1px 1px -0.5px #2a334508,
+    0px 3px 3px -1.5px #2a334608, 0px 6px 6px -3px #2a334608,
+    0px 12px 12px -6px #0e3f7e08, 0px 24px 24px -12px #0e3f7e10;
+}
+.smooth-shadow-sm {
+  box-shadow:
+    0 0 0 1px #0e3f7e05, 0 1px 1px -0.5px #2a334505, 0 2px 2px -1px #2a334506,
+    0 4px 4px -2px #2a334506, 0 8px 8px -4px #0e3f7e05, 0 16px 16px -8px #0e3f7e08;
+}
+
+@keyframes custom-show {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes custom-hide {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes custom-animate-in {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes custom-animate-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.97) translateY(4px); }
+}
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-slide-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { artist } from "../data/photos";
+import { artist } from "../data/artist";
 
 // Loader on first load. Muestra el progreso real de precarga de imágenes y al
 // terminar se levanta como telón (curtain) revelando la galería ya cacheada.

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { artist } from "../data/photos";
+import { artist } from "../data/artist";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 

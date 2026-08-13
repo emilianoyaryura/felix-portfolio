@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "motion/react";
-import { PHOTOS, artist } from "../data/photos";
+import { artist } from "../data/artist";
+import type { Photo } from "../lib/grid-layout";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 // Vista ordenada: masonry por columnas (CSS columns) con mucho aire.
 // El scroll lo suaviza Lenis; cada foto se revela al entrar al viewport.
-export default function GridView() {
+export default function GridView({ photos }: { photos: Photo[] }) {
   return (
     <div className="min-h-screen w-full px-[5vw] pb-32 pt-[22vh]">
       {/* Header al mismo ancho que el grid (w-full dentro del mismo padding). */}
@@ -44,7 +45,7 @@ export default function GridView() {
       </motion.header>
 
       <div className="columns-1 gap-6 sm:columns-2 lg:columns-3 [&>*]:mb-6">
-        {PHOTOS.map((p) => (
+        {photos.map((p) => (
           <motion.figure
             key={p.id}
             initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
@@ -58,6 +59,11 @@ export default function GridView() {
               src={p.src}
               alt={p.alt ?? ""}
               loading="lazy"
+              style={
+                p.width && p.height
+                  ? { aspectRatio: `${p.width} / ${p.height}` }
+                  : undefined
+              }
               className="w-full grayscale transition-[filter,scale] duration-500 [transition-timing-function:var(--ease-out)] [@media(hover:hover)]:group-hover:scale-[1.03] [@media(hover:hover)]:group-hover:grayscale-0"
             />
             <figcaption className="pointer-events-none absolute bottom-3 left-4 font-mono text-[0.6rem] uppercase tracking-[0.2em] text-white opacity-0 mix-blend-difference transition-opacity duration-300 [@media(hover:hover)]:group-hover:opacity-100">

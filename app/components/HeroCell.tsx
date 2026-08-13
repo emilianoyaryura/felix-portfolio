@@ -1,6 +1,6 @@
 "use client";
 
-import { artist } from "../data/photos";
+import { artist } from "../data/artist";
 
 // La "foto fake": una celda del mosaico que en vez de imagen es la identidad de
 // Félix. Vive dentro del bloque, así que en el infinite grid aparece sembrada por

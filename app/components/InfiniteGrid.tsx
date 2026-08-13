@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BLOCK_W, BLOCK_H, CELLS, cellRect } from "../data/photos";
+import { cellRect, type Cell } from "../lib/grid-layout";
 import HeroCell from "./HeroCell";
 
 // Un bloque = el mosaico completo, posicionado en absoluto. Es estático; solo
 // movemos/escalamos el contenedor. Como todas las copias son idénticas, envolver
 // de un borde al opuesto es invisible → sensación de infinito.
-function Block() {
+function Block({ cells, blockW, blockH }: { cells: Cell[]; blockW: number; blockH: number }) {
   return (
     <div
       className="absolute left-0 top-0"
-      style={{ width: BLOCK_W, height: BLOCK_H }}
+      style={{ width: blockW, height: blockH }}
     >
-      {CELLS.map((cell) => {
+      {cells.map((cell) => {
         const r = cellRect(cell);
         const style = { left: r.x, top: r.y, width: r.width, height: r.height };
         if (cell.type === "hero") {
@@ -56,7 +56,14 @@ const KEY_IMPULSE = 8;
 const MIN_S = 0.35; // zoom out máximo
 const MAX_S = 3; // zoom in máximo
 
-export default function InfiniteGrid({ active }: { active: boolean }) {
+type InfiniteGridProps = {
+  active: boolean;
+  cells: Cell[];
+  blockW: number;
+  blockH: number;
+};
+
+export default function InfiniteGrid({ active, cells, blockW, blockH }: InfiniteGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const planeRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -79,10 +86,10 @@ export default function InfiniteGrid({ active }: { active: boolean }) {
 
   // Ajusta la cantidad de copias para cubrir el viewport al scale actual.
   const applyTiles = useCallback((s: number) => {
-    const x = Math.ceil(window.innerWidth / (BLOCK_W * s)) + 2;
-    const y = Math.ceil(window.innerHeight / (BLOCK_H * s)) + 2;
+    const x = Math.ceil(window.innerWidth / (blockW * s)) + 2;
+    const y = Math.ceil(window.innerHeight / (blockH * s)) + 2;
     setTiles((prev) => (prev.x === x && prev.y === y ? prev : { x, y }));
-  }, []);
+  }, [blockW, blockH]);
 
   useEffect(() => {
     reduced.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -90,7 +97,7 @@ export default function InfiniteGrid({ active }: { active: boolean }) {
     const s = window.innerWidth < 768 ? 0.45 : 1;
     scale.current = s;
     // Centrar el primer hero al cargar → siempre visible (clave en mobile) + lindo intro.
-    const hero = CELLS.find((c) => c.type === "hero");
+    const hero = cells.find((c) => c.type === "hero");
     if (hero) {
       const r = cellRect(hero);
       const cx = r.x + r.width / 2;
@@ -107,7 +114,7 @@ export default function InfiniteGrid({ active }: { active: boolean }) {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [applyTiles]);
+  }, [applyTiles, cells]);
 
   const clampV = () => {
     vel.current.x = Math.max(-MAX_V, Math.min(MAX_V, vel.current.x));
@@ -140,15 +147,15 @@ export default function InfiniteGrid({ active }: { active: boolean }) {
       if (planeRef.current) {
         planeRef.current.style.transform = `scale(${scale.current})`;
       }
-      const wrapX = ((pos.current.x % BLOCK_W) + BLOCK_W) % BLOCK_W;
-      const wrapY = ((pos.current.y % BLOCK_H) + BLOCK_H) % BLOCK_H;
+      const wrapX = ((pos.current.x % blockW) + blockW) % blockW;
+      const wrapY = ((pos.current.y % blockH) + blockH) % blockH;
       let k = 0;
       for (let j = 0; j < tiles.y; j++) {
         for (let i = 0; i < tiles.x; i++) {
           const el = tileRefs.current[k++];
           if (!el) continue;
-          const tx = wrapX - BLOCK_W + i * BLOCK_W;
-          const ty = wrapY - BLOCK_H + j * BLOCK_H;
+          const tx = wrapX - blockW + i * blockW;
+          const ty = wrapY - blockH + j * blockH;
           el.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
         }
       }
@@ -180,7 +187,7 @@ export default function InfiniteGrid({ active }: { active: boolean }) {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [tiles]);
+  }, [tiles, blockW, blockH]);
 
   // ── Pointer: 1 dedo = drag · 2 dedos = pinch-zoom + pan ──────────────────────
   const onPointerDown = (e: React.PointerEvent) => {
@@ -311,9 +318,9 @@ export default function InfiniteGrid({ active }: { active: boolean }) {
                 tileRefs.current[k] = el;
               }}
               className="absolute left-0 top-0 will-change-transform"
-              style={{ width: BLOCK_W, height: BLOCK_H }}
+              style={{ width: blockW, height: blockH }}
             >
-              <Block />
+              <Block cells={cells} blockW={blockW} blockH={blockH} />
             </div>
           ))}
         </div>
