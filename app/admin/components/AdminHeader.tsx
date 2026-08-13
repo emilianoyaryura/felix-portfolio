@@ -1,7 +1,14 @@
 "use client";
 
-import { useRef } from "react";
-import { ImageUp, LogOut, MoreVertical, ExternalLink } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  ImageUp,
+  LogOut,
+  MoreVertical,
+  ExternalLink,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logout } from "../actions";
+import { logout, cleanupOrphans } from "../actions";
 
 export default function AdminHeader({
   onFiles,
@@ -18,6 +25,23 @@ export default function AdminHeader({
   onFiles: (files: File[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [cleaning, setCleaning] = useState(false);
+
+  const runCleanup = async () => {
+    if (cleaning) return;
+    setCleaning(true);
+    const res = await cleanupOrphans();
+    setCleaning(false);
+    if (res.ok) {
+      toast.success(
+        res.deleted === 0
+          ? "Sin archivos huérfanos para limpiar"
+          : `${res.deleted} archivos huérfanos borrados`
+      );
+    } else {
+      toast.error(res.error === "UNAUTHORIZED" ? "Sesión expirada" : res.error);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border">
@@ -54,6 +78,10 @@ export default function AdminHeader({
                   <ExternalLink className="w-3.5 h-3.5" />
                   Ver sitio
                 </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void runCleanup()}>
+                <Trash2 className="w-3.5 h-3.5" />
+                {cleaning ? "Limpiando…" : "Limpiar archivos huérfanos"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

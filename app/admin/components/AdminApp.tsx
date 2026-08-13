@@ -14,6 +14,7 @@ import UploadReview from "./UploadReview";
 import { useUploadQueue } from "../lib/upload";
 import { bulkUpdate, updatePhoto, deletePhotos } from "../actions";
 import { sameTag } from "@/lib/validate";
+import { MIN_HOME_PHOTOS } from "../../lib/grid-layout";
 import type { ActionResult } from "@/lib/types";
 import type { AdminPhoto, HomeFilter } from "../lib/admin-types";
 
@@ -22,6 +23,33 @@ type AdminAppProps = {
   initialTags: string[];
   publicUrlReady: boolean;
 };
+
+// Contador de curaduría + aviso cuando la home va a completarse sola.
+function HomeStatus({ photos }: { photos: AdminPhoto[] }) {
+  const homeCount = photos.filter((p) => p.inHome).length;
+  if (photos.length === 0) return null;
+  return (
+    <p className="text-xs text-gray-500">
+      {photos.length} {photos.length === 1 ? "foto" : "fotos"} ·{" "}
+      <span className={homeCount > 0 ? "text-primary font-medium" : ""}>
+        {homeCount} en home
+      </span>
+      {homeCount === 0 && (
+        <span className="text-gray-400">
+          {" "}
+          — sin curaduría: la home muestra todas
+        </span>
+      )}
+      {homeCount > 0 && homeCount < MIN_HOME_PHOTOS && (
+        <span className="text-amber-600">
+          {" "}
+          — se completa con las {MIN_HOME_PHOTOS - homeCount} más recientes (el
+          mosaico necesita {MIN_HOME_PHOTOS}+ para no repetirse)
+        </span>
+      )}
+    </p>
+  );
+}
 
 export default function AdminApp({
   initialPhotos,
@@ -273,6 +301,8 @@ export default function AdminApp({
           }
           onClearSelection={() => setSelection(new Set())}
         />
+
+        <HomeStatus photos={photos} />
 
         <PhotoGrid
           photos={filtered}

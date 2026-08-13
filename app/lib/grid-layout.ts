@@ -14,6 +14,13 @@ export const UNIT = 300; // lado de una celda unitaria (px)
 export const GAP = 12; // separación entre fotos (px)
 export const PITCH = UNIT + GAP; // paso de grilla
 
+// Mínimo de fotos para la home. El período de repetición del infinite grid es
+// el pool completo: con pocas fotos el mosaico se siente empapelado (las mismas
+// caras cada media pantalla de drag). 20 ≈ 2 sub-bloques bento → el patrón
+// tarda lo suficiente en repetirse. Si la curaduría queda corta, la home se
+// completa con las fotos más recientes hasta llegar acá.
+export const MIN_HOME_PHOTOS = 20;
+
 export type Photo = {
   id: string;
   src: string;
@@ -62,14 +69,52 @@ export type Block = {
   blockH: number;
 };
 
+// Asignación consciente del aspect ratio: las fotos apaisadas van a celdas
+// anchas, las verticales a celdas altas (menos crop feo del object-cover).
+type Orientation = "wide" | "tall" | "square";
+
+function slotOrientation(s: Pick<Slot, "w" | "h">): Orientation {
+  return s.w > s.h ? "wide" : s.h > s.w ? "tall" : "square";
+}
+
+function photoOrientation(p: Photo): Orientation {
+  if (!p.width || !p.height) return "square";
+  const r = p.width / p.height;
+  return r > 1.15 ? "wide" : r < 0.87 ? "tall" : "square";
+}
+
+const FALLBACK: Record<Orientation, Orientation[]> = {
+  wide: ["wide", "square", "tall"],
+  tall: ["tall", "square", "wide"],
+  square: ["square", "wide", "tall"],
+};
+
 // Compone el bloque grande: grilla ~cuadrada de sub-bloques, repartiendo las
-// fotos y conservando el hero en cada sub-bloque.
+// fotos por orientación y conservando el hero en cada sub-bloque. Todas las
+// fotos aparecen una vez antes de que cualquiera se repita.
 export function buildBlock(photos: Photo[]): Block {
   const g = Math.max(1, Math.ceil(photos.length / PHOTO_SLOTS)); // sub-bloques necesarios
   const gCols = Math.ceil(Math.sqrt(g)); // arreglo casi cuadrado
   const gRows = Math.ceil(g / gCols);
+
+  const buildQueues = () => {
+    const q: Record<Orientation, Photo[]> = { wide: [], tall: [], square: [] };
+    for (const p of photos) q[photoOrientation(p)].push(p);
+    return q;
+  };
+  let queues = buildQueues();
+  const take = (pref: Orientation): Photo => {
+    if (queues.wide.length + queues.tall.length + queues.square.length === 0) {
+      queues = buildQueues(); // se usaron todas → recién ahí se repite el pool
+    }
+    for (const o of FALLBACK[pref]) {
+      const q = queues[o];
+      if (q.length > 0) return q.shift()!;
+    }
+    return photos[0]; // inalcanzable con photos.length > 0
+  };
+
   const cells: Cell[] = [];
-  let p = 0;
   for (let r = 0; r < gRows; r++) {
     for (let c = 0; c < gCols; c++) {
       const baseCol = c * TPL_COLS;
@@ -84,8 +129,7 @@ export function buildBlock(photos: Photo[]): Block {
           type: t.type,
         };
         if (t.type === "photo") {
-          const photo = photos[p % photos.length]; // wrap para completar el último sub-bloque
-          p++;
+          const photo = take(slotOrientation(t));
           cell.src = photo.src;
           cell.alt = photo.alt;
         }

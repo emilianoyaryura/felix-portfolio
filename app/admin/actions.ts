@@ -6,6 +6,7 @@ import { updateTag } from "next/cache";
 import {
   DeleteObjectsCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -18,7 +19,7 @@ import {
   COOKIE_NAME,
 } from "@/lib/auth";
 import { r2Client, bucket } from "@/lib/r2";
-import { mutateManifest } from "@/lib/manifest";
+import { mutateManifest, getManifestFresh } from "@/lib/manifest";
 import type { ActionResult, PhotoRecord } from "@/lib/types";
 import {
   ALLOWED_MIME,
@@ -317,6 +318,59 @@ export async function deletePhotos(ids: string[]): Promise<ActionResult> {
     }
     updateTag("photos");
   });
+}
+
+// Borra objetos de photos/ que no están en el manifest (tandas canceladas,
+// uploads cortados). Solo objetos con >24h de antigüedad: una tanda en revisión
+// abierta en otra pestaña nunca se toca.
+export async function cleanupOrphans(): Promise<
+  { ok: true; deleted: number } | { ok: false; error: string }
+> {
+  try {
+    await requireAdmin();
+    const manifest = await getManifestFresh();
+    const known = new Set(
+      manifest.photos.flatMap((p) => Object.values(p.keys))
+    );
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const orphans: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await r2Client().send(
+        new ListObjectsV2Command({
+          Bucket: bucket(),
+          Prefix: "photos/",
+          ContinuationToken: cursor,
+        })
+      );
+      for (const obj of page.Contents ?? []) {
+        if (
+          obj.Key &&
+          !known.has(obj.Key) &&
+          (obj.LastModified?.getTime() ?? Date.now()) < cutoff
+        ) {
+          orphans.push(obj.Key);
+        }
+      }
+      cursor = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (cursor);
+
+    for (let i = 0; i < orphans.length; i += 1000) {
+      await r2Client().send(
+        new DeleteObjectsCommand({
+          Bucket: bucket(),
+          Delete: {
+            Objects: orphans.slice(i, i + 1000).map((Key) => ({ Key })),
+          },
+        })
+      );
+    }
+    return { ok: true, deleted: orphans.length };
+  } catch (err) {
+    if (err instanceof AuthError) return { ok: false, error: "UNAUTHORIZED" };
+    console.error("[cleanupOrphans]", err);
+    return { ok: false, error: "No se pudo limpiar" };
+  }
 }
 
 export async function createTag(name: string): Promise<ActionResult> {
