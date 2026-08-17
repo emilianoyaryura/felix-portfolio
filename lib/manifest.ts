@@ -32,9 +32,31 @@ async function fetchFromR2(): Promise<FetchedManifest> {
     }
     return { manifest, etag: res.ETag ?? null };
   } catch (err) {
-    if ((err as { name?: string }).name === "NoSuchKey") {
+    // Manifest inexistente (bucket recién creado) → arrancar vacío. En Node el
+    // aws-sdk lo reporta como name "NoSuchKey", pero R2 sobre workerd (Cloudflare)
+    // puede darle otro name para el mismo 404 → tratamos cualquier 404/NotFound
+    // como "todavía no existe" para no confundirlo con un manifest corrupto.
+    const e = err as {
+      name?: string;
+      Code?: string;
+      $metadata?: { httpStatusCode?: number };
+    };
+    if (
+      e.name === "NoSuchKey" ||
+      e.name === "NotFound" ||
+      e.Code === "NoSuchKey" ||
+      e.$metadata?.httpStatusCode === 404
+    ) {
       return { manifest: emptyManifest(), etag: null };
     }
+    // Cualquier otra cosa es un fallo real (auth, red, JSON inválido) → se loguea
+    // para verlo en los Live Logs del Worker antes de re-lanzar.
+    console.error(
+      "[manifest] lectura falló:",
+      e.name,
+      e.$metadata?.httpStatusCode,
+      err
+    );
     throw err;
   }
 }
