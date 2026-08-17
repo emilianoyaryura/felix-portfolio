@@ -10,11 +10,22 @@
   },
   "services": [
     { "binding": "WORKER_SELF_REFERENCE", "service": "felix-portfolio" }
-  ]
+  ],
 
-  // Las credenciales R2 de las fotos (R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID,
-  // R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL) NO van acá: se cargan como secrets del
-  // Worker (dashboard o `wrangler secret put`). En local viven en `.dev.vars`.
+  // Valores NO sensibles del R2, versionados acá para que cada deploy los tenga
+  // (si se cargan como vars de texto plano en el dashboard, un `wrangler deploy`
+  // las pisa/borra). Endpoint = account id público, bucket y URL pública no son
+  // secretos.
+  "vars": {
+    "R2_ENDPOINT": "https://152d4890e768677fe7e3f024595d7f91.r2.cloudflarestorage.com",
+    "R2_BUCKET": "website",
+    "R2_PUBLIC_URL": "https://media.felixgomezroca.com"
+  }
+
+  // Las 2 credenciales (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) van como SECRETS
+  // encriptados del Worker (Settings → Variables and Secrets → Add → Secret, o
+  // `wrangler secret put`). Los secrets encriptados NO los borra un deploy.
+  // En local, las 5 viven en `.dev.vars`.
 
   // Para habilitar el caché incremental persistente (ISR/revalidateTag entre
   // isolates), crear un bucket R2 aparte y descomentar — luego actualizar

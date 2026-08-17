@@ -20,14 +20,17 @@ Conectado al repo de GitHub `felix-portfolio` (acceso solo a ese repo). Cada `gi
 - **Deploy command:** `npx wrangler deploy`
 - **Root directory:** (vacío)
 
-### Variables de entorno — van en DOS lugares
+### Variables de entorno
 
-Las 5 `R2_*` hay que cargarlas dos veces en el dashboard del Worker:
+⚠️ **No las cargues como vars de texto plano en el dashboard**: un `wrangler deploy` (que dispara cada git push) las **pisa/borra**, porque wrangler toma `wrangler.jsonc` como fuente de verdad. Síntoma: el admin tira "Manifest ilegible" después de un deploy.
 
-1. **Build** (Builds → *Build variables and secrets*): sin esto la home se prerenderea con placeholders en vez de las fotos reales.
-2. **Runtime** (Settings → *Variables and Secrets*): sin esto `/admin` y la lectura de R2 fallan en vivo. Marcar `R2_SECRET_ACCESS_KEY` como Secret.
+Esquema deploy-proof:
 
-En local viven en **`.dev.vars`** (gitignored), que usa `bun run preview`.
+1. **3 no sensibles → versionadas en `wrangler.jsonc` (`vars`)**: `R2_ENDPOINT`, `R2_BUCKET`, `R2_PUBLIC_URL`. Viajan con cada deploy, no se pueden borrar.
+2. **2 credenciales → SECRETS encriptados** (Settings → *Variables and Secrets* → Add → **Secret**, o `wrangler secret put`): `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Los secrets encriptados **NO** los borra un deploy.
+3. **Build-time** (opcional, para que la home prerenderee fotos reales en vez de placeholders): las mismas en Builds → *Build variables and secrets*. No urgente mientras no haya fotos reales.
+
+En local las 5 viven en **`.dev.vars`** (gitignored), que usa `bun run preview`.
 
 ### Comandos locales
 
