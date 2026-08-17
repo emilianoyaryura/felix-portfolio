@@ -56,7 +56,6 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${artist.name} — ${artist.role}`,
     description: `Photography by ${artist.name}.`,
-    creator: `@${artist.instagram}`,
     images: ["/og/og.png"],
   },
 };

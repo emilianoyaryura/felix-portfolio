@@ -33,13 +33,13 @@ export default function HeroCell() {
           {artist.email}
         </a>
         <a
-          href={artist.instagramUrl}
+          href={artist.whatsappUrl}
           target="_blank"
           rel="noreferrer"
           onPointerDown={stop}
           className="w-fit text-paper underline-offset-4 transition-opacity hover:opacity-60 hover:underline"
         >
-          @{artist.instagram}
+          {artist.whatsapp}
         </a>
       </div>
     </div>

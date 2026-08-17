@@ -48,12 +48,12 @@ export default function ContactButton() {
                 {artist.email}
               </a>
               <a
-                href={artist.instagramUrl}
+                href={artist.whatsappUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="w-fit underline-offset-4 transition-colors hover:text-ink hover:underline"
               >
-                @{artist.instagram}
+                {artist.whatsapp}
               </a>
               <span className="text-ink/45">{artist.location}</span>
             </div>

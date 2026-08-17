@@ -4,6 +4,6 @@ export const artist = {
   role: "Photographer",
   location: "Buenos Aires, AR",
   email: "felixgomezroca@gmail.com",
-  instagram: "felixgomezroca",
-  instagramUrl: "https://instagram.com/felixgomezroca",
+  whatsapp: "+54 9 11 6477-1997",
+  whatsappUrl: "https://wa.me/5491164771997",
 };

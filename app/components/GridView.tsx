@@ -34,12 +34,12 @@ export default function GridView({ photos }: { photos: Photo[] }) {
             {artist.email}
           </a>
           <a
-            href={artist.instagramUrl}
+            href={artist.whatsappUrl}
             target="_blank"
             rel="noreferrer"
             className="w-fit underline-offset-4 transition-colors hover:text-ink hover:underline sm:self-end"
           >
-            @{artist.instagram}
+            {artist.whatsapp}
           </a>
         </div>
       </motion.header>
