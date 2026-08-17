@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "felix-portfolio",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "felix-portfolio" }
+  ]
+
+  // Las credenciales R2 de las fotos (R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID,
+  // R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL) NO van acá: se cargan como secrets del
+  // Worker (dashboard o `wrangler secret put`). En local viven en `.dev.vars`.
+
+  // Para habilitar el caché incremental persistente (ISR/revalidateTag entre
+  // isolates), crear un bucket R2 aparte y descomentar — luego actualizar
+  // open-next.config.ts:
+  // "r2_buckets": [
+  //   { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "felix-portfolio-cache" }
+  // ]
+}
