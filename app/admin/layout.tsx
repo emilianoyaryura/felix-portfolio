@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Admin — Félix Gomez Roca",
+  title: "Admin — Félix Gómez Roca",
   robots: { index: false, follow: false },
 };
 

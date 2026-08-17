@@ -1,9 +1,9 @@
-// Info del artista (placeholder — cambiar por lo real de Félix)
+// Info del artista de Félix.
 export const artist = {
-  name: "Felix Gomez Roca",
+  name: "Félix Gómez Roca",
   role: "Photographer",
   location: "Buenos Aires, AR",
-  email: "felix@example.com",
+  email: "felixgomezroca@gmail.com",
   instagram: "felixgomezroca",
   instagramUrl: "https://instagram.com/felixgomezroca",
 };
