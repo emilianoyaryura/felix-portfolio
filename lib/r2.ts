@@ -61,6 +61,12 @@ export async function getObjectText(
   return { body: await res.text(), etag: strongEtag(res.headers.get("etag")) };
 }
 
+// Response cruda del objeto (para proxear/streamear la descarga). No lanza en
+// HTTP de error — el caller inspecciona res.ok/res.status.
+export async function getObjectResponse(key: string): Promise<Response> {
+  return client().fetch(objectUrl(key), { method: "GET" });
+}
+
 type PutOpts = {
   contentType?: string;
   cacheControl?: string;
