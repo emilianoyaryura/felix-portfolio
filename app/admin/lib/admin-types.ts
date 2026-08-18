@@ -12,6 +12,7 @@ export type AdminPhoto = {
   createdAt: string;
   thumbUrl: string;
   displayUrl: string;
+  originalUrl: string;
 };
 
 export type HomeFilter = "all" | "home" | "out";

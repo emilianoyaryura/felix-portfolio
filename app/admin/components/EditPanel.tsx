@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, Download, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,7 @@ export default function EditPanel({
   const [tags, setTags] = useState<string[]>([]);
   const [inHome, setInHome] = useState(false);
   const [pending, setPending] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   // Reset del form al abrir otra foto ("adjust state during render": keyed por id
   // para no pisar lo que se está tipeando cuando refresca el manifest de fondo).
@@ -72,6 +73,65 @@ export default function EditPanel({
     setPending(false);
     if (ok) onClose();
   };
+
+  // Descarga cross-origin: fetch → blob → <a download>. Si CORS bloquea el
+  // fetch (el origin del admin no está en el CORS del bucket), abre en pestaña.
+  const download = async (url: string, filename: string, key: string) => {
+    setDownloading(key);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(String(res.status));
+      const objectUrl = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(url, "_blank", "noopener");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const slug =
+    (photo.title || photo.id)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || photo.id;
+  const origExt = photo.originalUrl.split("?")[0].split(".").pop() || "jpg";
+  const scaledDims = (max: number) => {
+    if (!photo.width || !photo.height) return "";
+    const long = Math.max(photo.width, photo.height);
+    const r = long > max ? max / long : 1;
+    return `${Math.round(photo.width * r)} × ${Math.round(photo.height * r)}`;
+  };
+  const downloads = [
+    {
+      key: "original",
+      label: "Original",
+      sub: `${photo.width} × ${photo.height} · ${formatBytes(photo.bytes)}`,
+      url: photo.originalUrl,
+      filename: `${slug}-original.${origExt}`,
+    },
+    {
+      key: "display",
+      label: "Grande",
+      sub: `${scaledDims(1600)} · webp`,
+      url: photo.displayUrl,
+      filename: `${slug}-1600.webp`,
+    },
+    {
+      key: "thumb",
+      label: "Chica",
+      sub: `${scaledDims(400)} · webp`,
+      url: photo.thumbUrl,
+      filename: `${slug}-400.webp`,
+    },
+  ];
 
   const body = (
     <div className="space-y-4">
@@ -129,6 +189,35 @@ export default function EditPanel({
         <span className="text-sm font-medium">Mostrar en home</span>
         <Switch checked={inHome} onCheckedChange={setInHome} />
       </label>
+
+      {photo.displayUrl && (
+        <div className="space-y-1.5">
+          <Label className="text-sm text-gray-500">Descargar</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {downloads.map((d) => (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => download(d.url, d.filename, d.key)}
+                disabled={downloading !== null || !d.url}
+                className="flex flex-col gap-1 rounded-lg border border-gray-200 px-2.5 py-2 text-left transition-colors md:hover:bg-gray-50 disabled:opacity-50"
+              >
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  {downloading === d.key ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  {d.label}
+                </span>
+                <span className="text-[10px] leading-tight text-gray-400">
+                  {d.sub}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-gray-400">
         {photo.width} × {photo.height} px · {formatBytes(photo.bytes)} ·{" "}
