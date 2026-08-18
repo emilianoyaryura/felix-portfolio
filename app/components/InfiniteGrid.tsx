@@ -34,9 +34,10 @@ function Block({ cells, blockW, blockH }: { cells: Cell[]; blockW: number; block
               src={cell.src}
               alt={cell.alt ?? ""}
               draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
               loading="eager"
               decoding="async"
-              className="h-full w-full select-none object-cover opacity-0 transition-[scale,opacity] duration-500 [transition-timing-function:var(--ease-out)] [@media(hover:hover)]:group-hover:scale-[1.04]"
+              className="h-full w-full select-none object-cover opacity-0 transition-[scale,opacity] duration-500 [transition-timing-function:var(--ease-out)] [-webkit-touch-callout:none] [@media(hover:hover)]:group-hover:scale-[1.04]"
               onLoad={(e) => (e.currentTarget.style.opacity = "1")}
             />
             <figcaption className="pointer-events-none absolute bottom-2.5 left-3 font-mono text-[0.58rem] uppercase tracking-[0.2em] text-white opacity-0 mix-blend-difference transition-opacity duration-300 [@media(hover:hover)]:group-hover:opacity-100">
