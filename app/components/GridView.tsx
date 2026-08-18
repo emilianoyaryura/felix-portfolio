@@ -64,7 +64,7 @@ export default function GridView({ photos }: { photos: Photo[] }) {
                   ? { aspectRatio: `${p.width} / ${p.height}` }
                   : undefined
               }
-              className="w-full grayscale transition-[filter,scale] duration-500 [transition-timing-function:var(--ease-out)] [@media(hover:hover)]:group-hover:scale-[1.03] [@media(hover:hover)]:group-hover:grayscale-0"
+              className="w-full transition-[scale] duration-500 [transition-timing-function:var(--ease-out)] [@media(hover:hover)]:group-hover:scale-[1.03]"
             />
             <figcaption className="pointer-events-none absolute bottom-3 left-4 font-mono text-[0.6rem] uppercase tracking-[0.2em] text-white opacity-0 mix-blend-difference transition-opacity duration-300 [@media(hover:hover)]:group-hover:opacity-100">
               {p.alt}
