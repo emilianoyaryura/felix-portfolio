@@ -4,13 +4,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { updateTag } from "next/cache";
 import {
-  DeleteObjectsCommand,
-  HeadObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import {
   checkCredentials,
   createSessionToken,
   sessionCookieOptions,
@@ -18,7 +11,12 @@ import {
   AuthError,
   COOKIE_NAME,
 } from "@/lib/auth";
-import { r2Client, bucket } from "@/lib/r2";
+import {
+  presignPutUrl,
+  headObject,
+  deleteObjects,
+  listObjects,
+} from "@/lib/r2";
 import { mutateManifest, getManifestFresh } from "@/lib/manifest";
 import type { ActionResult, PhotoRecord } from "@/lib/types";
 import {
@@ -89,16 +87,7 @@ async function presignPut(
   key: string,
   contentType: string
 ): Promise<PresignTarget> {
-  const url = await getSignedUrl(
-    r2Client(),
-    new PutObjectCommand({
-      Bucket: bucket(),
-      Key: key,
-      ContentType: contentType,
-      CacheControl: IMMUTABLE,
-    }),
-    { expiresIn: 600 }
-  );
+  const url = await presignPutUrl(key, 600);
   return {
     key,
     url,
@@ -169,25 +158,17 @@ export async function commitUploads(
         display: `photos/${e.id}/display.webp`,
         thumb: `photos/${e.id}/thumb.webp`,
       };
-      const [orig] = await Promise.all([
-        r2Client().send(
-          new HeadObjectCommand({ Bucket: bucket(), Key: keys.original })
-        ),
-        r2Client().send(
-          new HeadObjectCommand({ Bucket: bucket(), Key: keys.display })
-        ),
-        r2Client().send(
-          new HeadObjectCommand({ Bucket: bucket(), Key: keys.thumb })
-        ),
+      const [orig, disp, thumb] = await Promise.all([
+        headObject(keys.original),
+        headObject(keys.display),
+        headObject(keys.thumb),
       ]);
-      const bytes = orig.ContentLength ?? 0;
+      if (!orig || !disp || !thumb) {
+        throw new Error(`Faltan variantes en R2: ${e.id}`);
+      }
+      const bytes = orig.contentLength;
       if (bytes > LIMITS.fileBytes) {
-        await r2Client().send(
-          new DeleteObjectsCommand({
-            Bucket: bucket(),
-            Delete: { Objects: Object.values(keys).map((Key) => ({ Key })) },
-          })
-        );
+        await deleteObjects(Object.values(keys));
         throw new Error(`Archivo demasiado grande: ${e.id}`);
       }
       records.push({
@@ -308,14 +289,7 @@ export async function deletePhotos(ids: string[]): Promise<ActionResult> {
     // Los objetos se borran después de sacarlos del manifest: si algo falla acá
     // quedan huérfanos invisibles (limpieza en fase 2), nunca fotos rotas.
     const keys = removed.flatMap((p) => Object.values(p.keys));
-    for (let i = 0; i < keys.length; i += 1000) {
-      await r2Client().send(
-        new DeleteObjectsCommand({
-          Bucket: bucket(),
-          Delete: { Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })) },
-        })
-      );
-    }
+    await deleteObjects(keys);
     updateTag("photos");
   });
 }
@@ -333,38 +307,11 @@ export async function cleanupOrphans(): Promise<
       manifest.photos.flatMap((p) => Object.values(p.keys))
     );
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    const orphans: string[] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await r2Client().send(
-        new ListObjectsV2Command({
-          Bucket: bucket(),
-          Prefix: "photos/",
-          ContinuationToken: cursor,
-        })
-      );
-      for (const obj of page.Contents ?? []) {
-        if (
-          obj.Key &&
-          !known.has(obj.Key) &&
-          (obj.LastModified?.getTime() ?? Date.now()) < cutoff
-        ) {
-          orphans.push(obj.Key);
-        }
-      }
-      cursor = page.IsTruncated ? page.NextContinuationToken : undefined;
-    } while (cursor);
-
-    for (let i = 0; i < orphans.length; i += 1000) {
-      await r2Client().send(
-        new DeleteObjectsCommand({
-          Bucket: bucket(),
-          Delete: {
-            Objects: orphans.slice(i, i + 1000).map((Key) => ({ Key })),
-          },
-        })
-      );
-    }
+    const objs = await listObjects("photos/");
+    const orphans = objs
+      .filter((o) => !known.has(o.key) && o.lastModified < cutoff)
+      .map((o) => o.key);
+    await deleteObjects(orphans);
     return { ok: true, deleted: orphans.length };
   } catch (err) {
     if (err instanceof AuthError) return { ok: false, error: "UNAUTHORIZED" };

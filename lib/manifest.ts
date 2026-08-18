@@ -1,11 +1,6 @@
 import "server-only";
-import {
-  GetObjectCommand,
-  PutObjectCommand,
-  CopyObjectCommand,
-} from "@aws-sdk/client-s3";
 import { unstable_cache } from "next/cache";
-import { r2Client, bucket } from "./r2";
+import { getObjectText, putObject, copyObject } from "./r2";
 import type { Manifest } from "./types";
 
 const MANIFEST_KEY = "_meta/manifest.json";
@@ -21,44 +16,13 @@ type FetchedManifest = { manifest: Manifest; etag: string | null };
 // LANZA: nunca hay que pisar un manifest que no se pudo parsear (se recupera
 // a mano desde _meta/manifest.prev.json).
 async function fetchFromR2(): Promise<FetchedManifest> {
-  try {
-    const res = await r2Client().send(
-      new GetObjectCommand({ Bucket: bucket(), Key: MANIFEST_KEY })
-    );
-    const body = await res.Body!.transformToString();
-    const manifest = JSON.parse(body) as Manifest;
-    if (!Array.isArray(manifest.photos) || !Array.isArray(manifest.tags)) {
-      throw new Error("Manifest con estructura inválida");
-    }
-    return { manifest, etag: res.ETag ?? null };
-  } catch (err) {
-    // Manifest inexistente (bucket recién creado) → arrancar vacío. En Node el
-    // aws-sdk lo reporta como name "NoSuchKey", pero R2 sobre workerd (Cloudflare)
-    // puede darle otro name para el mismo 404 → tratamos cualquier 404/NotFound
-    // como "todavía no existe" para no confundirlo con un manifest corrupto.
-    const e = err as {
-      name?: string;
-      Code?: string;
-      $metadata?: { httpStatusCode?: number };
-    };
-    if (
-      e.name === "NoSuchKey" ||
-      e.name === "NotFound" ||
-      e.Code === "NoSuchKey" ||
-      e.$metadata?.httpStatusCode === 404
-    ) {
-      return { manifest: emptyManifest(), etag: null };
-    }
-    // Cualquier otra cosa es un fallo real (auth, red, JSON inválido) → se loguea
-    // para verlo en los Live Logs del Worker antes de re-lanzar.
-    console.error(
-      "[manifest] lectura falló:",
-      e.name,
-      e.$metadata?.httpStatusCode,
-      err
-    );
-    throw err;
+  const obj = await getObjectText(MANIFEST_KEY);
+  if (!obj) return { manifest: emptyManifest(), etag: null };
+  const manifest = JSON.parse(obj.body) as Manifest;
+  if (!Array.isArray(manifest.photos) || !Array.isArray(manifest.tags)) {
+    throw new Error("Manifest con estructura inválida");
   }
+  return { manifest, etag: obj.etag };
 }
 
 // Lectura cacheada para la home pública. Se invalida con updateTag("photos").
@@ -98,52 +62,32 @@ async function mutateWithRetry(
   next.updatedAt = new Date().toISOString();
   next.tags = [...next.tags].sort((a, b) => a.localeCompare(b));
 
+  // Backup del estado actual antes de sobreescribir (undo de 1 nivel).
   if (etag) {
-    // Backup del estado actual antes de sobreescribir (undo de 1 nivel).
-    await r2Client()
-      .send(
-        new CopyObjectCommand({
-          Bucket: bucket(),
-          CopySource: `${bucket()}/${MANIFEST_KEY}`,
-          Key: BACKUP_KEY,
-        })
-      )
-      .catch(() => {});
+    await copyObject(MANIFEST_KEY, BACKUP_KEY).catch(() => {});
   }
 
-  const put = new PutObjectCommand({
-    Bucket: bucket(),
-    Key: MANIFEST_KEY,
-    Body: JSON.stringify(next),
-    ContentType: "application/json",
-    CacheControl: "no-cache",
-    ...(etag ? { IfMatch: etag } : { IfNoneMatch: "*" }),
+  const body = JSON.stringify(next);
+  const res = await putObject(MANIFEST_KEY, body, {
+    contentType: "application/json",
+    cacheControl: "no-cache",
+    ...(etag ? { ifMatch: etag } : { ifNoneMatch: "*" }),
   });
 
-  try {
-    await r2Client().send(put);
-  } catch (err) {
-    const status = (err as { $metadata?: { httpStatusCode?: number } })
-      .$metadata?.httpStatusCode;
-    // 412: otro proceso escribió en el medio → releer y reaplicar.
-    if (status === 412 && attempt < 3) {
-      return mutateWithRetry(fn, attempt + 1);
-    }
-    // 501: el proveedor no soporta writes condicionales → escribir sin
-    // condición (el mutex in-process sigue serializando).
-    if (status === 501) {
-      await r2Client().send(
-        new PutObjectCommand({
-          Bucket: bucket(),
-          Key: MANIFEST_KEY,
-          Body: JSON.stringify(next),
-          ContentType: "application/json",
-          CacheControl: "no-cache",
-        })
-      );
-      return next;
-    }
-    throw err;
+  if (res.ok) return next;
+  // 412: otro proceso escribió en el medio → releer y reaplicar.
+  if (res.status === 412 && attempt < 3) {
+    return mutateWithRetry(fn, attempt + 1);
   }
-  return next;
+  // 501: el proveedor no soporta writes condicionales → escribir sin condición
+  // (el mutex in-process sigue serializando).
+  if (res.status === 501) {
+    const plain = await putObject(MANIFEST_KEY, body, {
+      contentType: "application/json",
+      cacheControl: "no-cache",
+    });
+    if (plain.ok) return next;
+    throw new Error(`Manifest PUT (sin condición) falló: ${plain.status}`);
+  }
+  throw new Error(`Manifest PUT falló: ${res.status}`);
 }
