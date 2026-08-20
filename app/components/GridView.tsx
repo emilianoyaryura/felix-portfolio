@@ -8,7 +8,13 @@ const EASE = [0.23, 1, 0.32, 1] as const;
 
 // Vista ordenada: masonry por columnas (CSS columns) con mucho aire.
 // El scroll lo suaviza Lenis; cada foto se revela al entrar al viewport.
-export default function GridView({ photos }: { photos: Photo[] }) {
+export default function GridView({
+  photos,
+  onPhotoClick,
+}: {
+  photos: Photo[];
+  onPhotoClick: (index: number) => void;
+}) {
   return (
     <div className="min-h-screen w-full px-[5vw] pb-32 pt-[22vh]">
       {/* Header al mismo ancho que el grid (w-full dentro del mismo padding). */}
@@ -45,14 +51,15 @@ export default function GridView({ photos }: { photos: Photo[] }) {
       </motion.header>
 
       <div className="columns-1 gap-6 sm:columns-2 lg:columns-3 [&>*]:mb-6">
-        {photos.map((p) => (
+        {photos.map((p, i) => (
           <motion.figure
             key={p.id}
             initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
             whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.7, ease: EASE }}
-            className="group relative overflow-hidden break-inside-avoid bg-neutral-200"
+            onClick={() => onPhotoClick(i)}
+            className="group relative cursor-pointer overflow-hidden break-inside-avoid bg-neutral-200"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

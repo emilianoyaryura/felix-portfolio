@@ -8,6 +8,8 @@ import HeroCell from "./HeroCell";
 // movemos/escalamos el contenedor. Como todas las copias son idénticas, envolver
 // de un borde al opuesto es invisible → sensación de infinito.
 function Block({ cells, blockW, blockH }: { cells: Cell[]; blockW: number; blockH: number }) {
+  // El click NO se maneja acá: el contenedor detecta el tap (distinguiéndolo del
+  // drag) y hace hit-test por `data-photo-src`. Así un arrastre no abre el visor.
   return (
     <div
       className="absolute left-0 top-0"
@@ -26,7 +28,8 @@ function Block({ cells, blockW, blockH }: { cells: Cell[]; blockW: number; block
         return (
           <figure
             key={cell.id}
-            className="group absolute overflow-hidden bg-neutral-200"
+            data-photo-src={cell.src}
+            className="group absolute overflow-hidden bg-neutral-200 [@media(hover:hover)]:cursor-pointer"
             style={style}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -57,14 +60,17 @@ const KEY_IMPULSE = 8;
 const MIN_S = 0.35; // zoom out máximo
 const MAX_S = 3; // zoom in máximo
 
+const TAP_SLOP = 8; // px de movimiento tolerados para seguir contando como tap
+
 type InfiniteGridProps = {
   active: boolean;
   cells: Cell[];
   blockW: number;
   blockH: number;
+  onPhotoClick: (src: string) => void;
 };
 
-export default function InfiniteGrid({ active, cells, blockW, blockH }: InfiniteGridProps) {
+export default function InfiniteGrid({ active, cells, blockW, blockH, onPhotoClick }: InfiniteGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const planeRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -81,6 +87,9 @@ export default function InfiniteGrid({ active, cells, blockW, blockH }: Infinite
   const last = useRef({ x: 0, y: 0 });
   const reduced = useRef(false);
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  // Candidato a tap: posición del pointerdown de un solo dedo. Se anula apenas el
+  // movimiento supera TAP_SLOP → distingue "abrir foto" de "arrastrar el canvas".
+  const tapStart = useRef<{ x: number; y: number } | null>(null);
   const pinchDist = useRef(0);
   const pinchStartScale = useRef(1);
   const lastMid = useRef<{ x: number; y: number } | null>(null);
@@ -198,8 +207,10 @@ export default function InfiniteGrid({ active, cells, blockW, blockH }: Infinite
       dragging.current = true;
       vel.current = { x: 0, y: 0 };
       last.current = { x: e.clientX, y: e.clientY };
+      tapStart.current = { x: e.clientX, y: e.clientY };
     } else if (pointers.current.size === 2) {
       dragging.current = false;
+      tapStart.current = null;
       const [a, b] = [...pointers.current.values()];
       pinchDist.current = Math.hypot(a.x - b.x, a.y - b.y);
       pinchStartScale.current = scale.current;
@@ -232,6 +243,14 @@ export default function InfiniteGrid({ active, cells, blockW, blockH }: Infinite
       target.current.x += (e.clientX - last.current.x) / scale.current;
       target.current.y += (e.clientY - last.current.y) / scale.current;
       last.current = { x: e.clientX, y: e.clientY };
+      // Se movió demasiado → ya no es un tap, es un drag.
+      if (
+        tapStart.current &&
+        Math.hypot(e.clientX - tapStart.current.x, e.clientY - tapStart.current.y) >
+          TAP_SLOP
+      ) {
+        tapStart.current = null;
+      }
     }
   };
 
@@ -240,6 +259,26 @@ export default function InfiniteGrid({ active, cells, blockW, blockH }: Infinite
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {}
+    // Tap limpio (sin arrastre) sobre una foto → abrir el visor.
+    if (
+      pointers.current.size === 0 &&
+      tapStart.current &&
+      Math.hypot(e.clientX - tapStart.current.x, e.clientY - tapStart.current.y) <=
+        TAP_SLOP
+    ) {
+      const hit = document
+        .elementFromPoint(e.clientX, e.clientY)
+        ?.closest<HTMLElement>("[data-photo-src]");
+      const src = hit?.dataset.photoSrc;
+      tapStart.current = null;
+      if (src) {
+        dragging.current = false;
+        vel.current = { x: 0, y: 0 };
+        onPhotoClick(src);
+        return;
+      }
+    }
+    tapStart.current = null;
     if (pointers.current.size === 1) {
       // Queda un dedo → retomar drag con él, sin salto.
       const [only] = [...pointers.current.values()];

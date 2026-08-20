@@ -8,6 +8,7 @@ import ViewToggle, { type Mode } from "./ViewToggle";
 import ContactButton from "./ContactButton";
 import Loader from "./Loader";
 import LenisProvider from "./LenisProvider";
+import Lightbox from "./Lightbox";
 import { buildBlock, type Photo } from "../lib/grid-layout";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -21,9 +22,25 @@ export default function HomeClient({ photos }: { photos: Photo[] }) {
   const [mode, setMode] = useState<Mode>("infinite");
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
+  const [lightbox, setLightbox] = useState<number | null>(null);
   const reduce = useReducedMotion();
 
   const block = useMemo(() => buildBlock(photos), [photos]);
+
+  // El infinite grid conoce las fotos por src (las celdas repiten el pool);
+  // lo resolvemos a índice para abrir el carousel en la foto correcta.
+  const srcToIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    photos.forEach((p, i) => {
+      if (!m.has(p.src)) m.set(p.src, i);
+    });
+    return m;
+  }, [photos]);
+
+  const openBySrc = (src: string) => {
+    const i = srcToIndex.get(src);
+    if (i !== undefined) setLightbox(i);
+  };
 
   // Precarga las imágenes → calienta la caché del browser (cero blancos
   // después) y alimenta el progreso real del loader.
@@ -84,15 +101,23 @@ export default function HomeClient({ photos }: { photos: Photo[] }) {
               cells={block.cells}
               blockW={block.blockW}
               blockH={block.blockH}
+              onPhotoClick={openBySrc}
             />
             {ready && !reduce && <DragHint />}
           </motion.div>
         ) : (
           <motion.div key="grid" {...gridV} transition={{ duration: 0.5, ease: EASE }}>
-            <GridView photos={photos} />
+            <GridView photos={photos} onPhotoClick={setLightbox} />
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Lightbox
+        photos={photos}
+        index={lightbox}
+        onClose={() => setLightbox(null)}
+        onIndexChange={setLightbox}
+      />
 
       <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
         <ViewToggle mode={mode} onChange={setMode} />
